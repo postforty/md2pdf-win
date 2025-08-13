@@ -1,0 +1,14 @@
+/* pdf-styles.css */
+@page {
+  size: A4;
+  margin: 20mm; /* Set uniform margins for all sides */
+}
+
+body {
+  -webkit-print-color-adjust: exact;
+  box-sizing: border-box;
+  width: 100%; /* Use the full width within the @page margins */
+  margin: 0;
+  padding: 0;
+  font-size: 16px; /* Increase font size as requested */
+}

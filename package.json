@@ -1,0 +1,87 @@
+{
+  "name": "md-to-pdf-converter-gui",
+  "version": "1.0.0",
+  "description": "A simple Markdown to PDF converter with Mermaid support.",
+  "main": "src/main/main.js",
+  "author": "DandyCode",
+  "license": "MIT",
+  "homepage": "https://github.com/dandycode/md-to-pdf",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dandycode/md-to-pdf.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dandycode/md-to-pdf/issues"
+  },
+  "keywords": [
+    "markdown",
+    "pdf",
+    "converter",
+    "mermaid",
+    "diagram",
+    "electron"
+  ],
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder --publish=never",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux"
+  },
+  "build": {
+    "appId": "com.dandycode.md-to-pdf-converter",
+    "productName": "Markdown to PDF Converter",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "node_modules/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/ico.png",
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Markdown to PDF Converter"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/ico.png"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "assets/ico.png"
+    }
+  },
+  "dependencies": {
+    "marked": "^16.1.2",
+    "mermaid": "^11.9.0",
+    "puppeteer": "^24.16.1"
+  },
+  "devDependencies": {
+    "electron": "^37.2.6",
+    "electron-builder": "^26.0.12"
+  }
+}
