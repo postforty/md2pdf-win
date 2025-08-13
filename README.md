@@ -222,7 +222,7 @@ npm run dist -- --linux
 
 - **이슈 리포트**: [GitHub Issues](../../issues)
 - **기능 요청**: [GitHub Discussions](../../discussions)
-- **이메일**: dandycode@example.com
+- **이메일**: dandycode@gmail.com
 
 ## 🙏 감사의 말
 
