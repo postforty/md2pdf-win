@@ -74,17 +74,13 @@
 
 ### Mermaid 다이어그램
 
-````markdown
-```mermaid
+```markdown
 graph LR
     A[시작] --> B{조건}
     B -->|예| C[작업 1]
     B -->|아니오| D[작업 2]
     C --> E[끝]
     D --> E
-```
-````
-
 ```
 
 #### 지원하는 다이어그램 유형
@@ -106,7 +102,8 @@ graph LR
 - **언어**: Node.js, HTML, CSS, JavaScript
 
 ### 프로젝트 구조
-```
+
+```tree
 md-to-pdf/
 ├── main.js # Electron 메인 프로세스
 ├── index.html # UI 인터페이스
@@ -116,7 +113,7 @@ md-to-pdf/
 ├── pdf-styles.css # PDF 스타일시트
 ├── assets/ # 아이콘 및 리소스
 └── package.json # 프로젝트 설정
-````
+```
 
 ### 로컬 개발 환경 설정
 
@@ -124,7 +121,7 @@ md-to-pdf/
 ```bash
 git clone https://github.com/dandycode/md-to-pdf.git
 cd md-to-pdf
-````
+```
 
 #### 2. 의존성 설치
 
