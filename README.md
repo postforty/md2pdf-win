@@ -107,7 +107,6 @@ graph LR
 
 ### 프로젝트 구조
 ```
-
 md-to-pdf/
 ├── main.js # Electron 메인 프로세스
 ├── index.html # UI 인터페이스
@@ -117,7 +116,6 @@ md-to-pdf/
 ├── pdf-styles.css # PDF 스타일시트
 ├── assets/ # 아이콘 및 리소스
 └── package.json # 프로젝트 설정
-
 ````
 
 ### 로컬 개발 환경 설정
