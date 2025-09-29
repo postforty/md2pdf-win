@@ -1,6 +1,6 @@
 {
   "name": "md-to-pdf-converter-gui",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A simple Markdown to PDF converter with Mermaid support.",
   "main": "src/main/main.js",
   "author": "DandyCode",

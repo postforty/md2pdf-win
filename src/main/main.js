@@ -103,7 +103,10 @@ ipcMain.handle("handle-file-content", async (event, fileData) => {
     fs.writeFileSync(tempFilePath, fileData.content, "utf8");
 
     statusCallback(`🚀 변환 시작: ${fileData.name}`);
-    await convertOne(tempFilePath, statusCallback);
+
+    // originalPath가 있으면 전달, 없으면 null (드래그앤드롭의 경우)
+    const originalPath = fileData.originalPath || null;
+    await convertOne(tempFilePath, statusCallback, originalPath);
 
     const safeName = path
       .basename(fileData.name, path.extname(fileData.name))

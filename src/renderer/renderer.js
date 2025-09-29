@@ -56,12 +56,27 @@ dropZone.addEventListener(
             console.log("Sending file path:", file.path);
             window.electronAPI.sendFilePath(file.path);
           } else {
-            console.log("No valid file path, reading file content");
-            // 파일 내용을 읽어서 전달
+            console.log(
+              "No file path available, using file content with warning"
+            );
+            // 파일 내용을 읽어서 전달하되, 이미지 경로 문제 경고
             const content = await file.text();
+
+            // 이미지 참조가 있는지 확인
+            const hasImages = /!\[.*?\]\((?!data:|https?:\/\/).*?\)/g.test(
+              content
+            );
+            if (hasImages) {
+              statusDiv.textContent = `⚠️ 이미지가 포함된 파일입니다. 파일 탐색기를 사용하면 이미지가 정확히 표시됩니다.`;
+              setTimeout(() => {
+                statusDiv.textContent = `📄 파일 선택됨: ${file.name}`;
+              }, 3000);
+            }
+
             window.electronAPI.sendFileContent({
               name: file.name,
               content: content,
+              originalPath: null, // 드래그앤드롭에서는 원본 경로를 알 수 없음
             });
           }
         } catch (error) {
