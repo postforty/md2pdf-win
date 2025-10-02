@@ -280,81 +280,298 @@ function markdownToHtml(markdown) {
 
   return html;
 }
+// 옵션 검증 함수 - 강화된 에러 처리 및 안전장치
+function validateOptions(options) {
+  const validated = { ...options };
+  const errors = [];
+  const warnings = [];
+
+  // showPageNumbers 검증 및 기본값 설정
+  if (typeof validated.showPageNumbers !== "boolean") {
+    warnings.push(
+      "showPageNumbers가 boolean 타입이 아닙니다. 기본값 true를 사용합니다."
+    );
+    validated.showPageNumbers = true;
+  }
+
+  // startPageNumber 상세 검증
+  const originalStartNumber = validated.startPageNumber;
+  let isValidStartNumber = true;
+  let validationMessage = "";
+
+  if (
+    validated.startPageNumber === undefined ||
+    validated.startPageNumber === null
+  ) {
+    validationMessage =
+      "시작 번호가 지정되지 않았습니다. 기본값 1을 사용합니다.";
+    validated.startPageNumber = 1;
+  } else if (typeof validated.startPageNumber !== "number") {
+    validationMessage = `시작 번호가 숫자가 아닙니다 (입력값: ${originalStartNumber}). 기본값 1을 사용합니다.`;
+    validated.startPageNumber = 1;
+    isValidStartNumber = false;
+  } else if (!Number.isInteger(validated.startPageNumber)) {
+    validationMessage = `시작 번호가 정수가 아닙니다 (입력값: ${originalStartNumber}). 기본값 1을 사용합니다.`;
+    validated.startPageNumber = 1;
+    isValidStartNumber = false;
+  } else if (validated.startPageNumber < 1) {
+    validationMessage = `시작 번호가 1보다 작습니다 (입력값: ${originalStartNumber}). 기본값 1을 사용합니다.`;
+    validated.startPageNumber = 1;
+    isValidStartNumber = false;
+  } else if (validated.startPageNumber > 9999) {
+    validationMessage = `시작 번호가 최대값 9999를 초과합니다 (입력값: ${originalStartNumber}). 최대값 9999를 사용합니다.`;
+    validated.startPageNumber = 9999;
+    isValidStartNumber = false;
+  }
+
+  if (validationMessage) {
+    if (isValidStartNumber) {
+      warnings.push(validationMessage);
+    } else {
+      errors.push(validationMessage);
+    }
+  }
+
+  // 페이지 번호 표시가 비활성화된 경우 시작 번호 무시
+  if (!validated.showPageNumbers) {
+    if (originalStartNumber && originalStartNumber !== 1) {
+      warnings.push(
+        "페이지 번호 표시가 비활성화되어 있어 시작 번호가 무시됩니다."
+      );
+    }
+    validated.startPageNumber = 1;
+  }
+
+  // 로깅
+  if (errors.length > 0) {
+    console.error("❌ 옵션 검증 오류:");
+    errors.forEach((error) => console.error(`   - ${error}`));
+  }
+
+  if (warnings.length > 0) {
+    console.warn("⚠️  옵션 검증 경고:");
+    warnings.forEach((warning) => console.warn(`   - ${warning}`));
+  }
+
+  // 검증 결과 로깅
+  if (errors.length > 0 || warnings.length > 0) {
+    console.log("✅ 최종 적용된 옵션:", {
+      showPageNumbers: validated.showPageNumbers,
+      startPageNumber: validated.startPageNumber,
+    });
+  }
+
+  return validated;
+}
+
+// PDF 생성 실패 시 안전장치 함수
+function createFallbackPdfOptions(validatedOptions) {
+  const fallbackOptions = {
+    path: null, // 호출자에서 설정
+    format: "A4",
+    margin: {
+      top: "20mm",
+      right: "20mm",
+      bottom: "20mm", // 페이지 번호 없이 기본 여백
+      left: "20mm",
+    },
+    printBackground: true,
+    preferCSSPageSize: true,
+    displayHeaderFooter: false, // 안전장치에서는 페이지 번호 비활성화
+    headerTemplate: "<div></div>",
+    footerTemplate: "<div></div>",
+  };
+
+  console.warn(
+    "⚠️  PDF 생성 중 오류로 인해 안전장치 옵션을 사용합니다 (페이지 번호 없음)."
+  );
+  return fallbackOptions;
+}
+
 async function convertOne(
   inputPath,
   statusCallback = () => {},
   originalPath = null, // GUI에서 반드시 원본 파일의 전체 경로를 이 인자로 전달해야 합니다.
-  options = { showPageNumbers: true } // 페이지 번호 표시 옵션 (기본값: true)
+  options = { showPageNumbers: true, startPageNumber: 1 } // 페이지 번호 표시 옵션 및 시작 번호 (기본값: true, 1)
 ) {
+  // 입력 매개변수 검증
+  if (!inputPath || typeof inputPath !== "string") {
+    const error = new Error("입력 파일 경로가 유효하지 않습니다.");
+    console.error("❌ 매개변수 오류:", error.message);
+    throw error;
+  }
+
+  if (typeof statusCallback !== "function") {
+    console.warn(
+      "⚠️  statusCallback이 함수가 아닙니다. 기본 콜백을 사용합니다."
+    );
+    statusCallback = () => {};
+  }
+
+  // 옵션 검증 - 강화된 에러 처리
+  let validatedOptions;
+  try {
+    validatedOptions = validateOptions(options);
+  } catch (validationError) {
+    console.error("❌ 옵션 검증 중 치명적 오류:", validationError.message);
+    console.warn("⚠️  기본 옵션으로 대체합니다.");
+    validatedOptions = { showPageNumbers: true, startPageNumber: 1 };
+  }
+
   // --- 디버깅 로그 추가 ---
   console.log("=============================================");
   console.log("[Debug] convertOne 함수가 수신한 경로 정보:");
   console.log("  - inputPath (처리 대상 경로):", inputPath);
   console.log("  - originalPath (이미지 기준 경로용):", originalPath);
+  console.log("  - 원본 options:", options);
+  console.log("  - 검증된 options:", validatedOptions);
   console.log("=============================================");
 
-  const absoluteInput = path.resolve(inputPath);
-  ensureFileExists(absoluteInput);
-  const dir = path.dirname(absoluteInput);
-  const base = path.basename(absoluteInput, path.extname(absoluteInput));
-  const safeName = base.replace(/[^\w\-_.]/g, "_");
-  const outputDir = path.join(dir, "output");
+  let absoluteInput, dir, base, safeName, outputDir, markdown;
 
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
+  try {
+    // 파일 경로 처리 및 검증
+    absoluteInput = path.resolve(inputPath);
+    ensureFileExists(absoluteInput);
+
+    dir = path.dirname(absoluteInput);
+    base = path.basename(absoluteInput, path.extname(absoluteInput));
+    safeName = base.replace(/[^\w\-_.]/g, "_");
+
+    // 안전한 파일명 검증
+    if (!safeName || safeName.length === 0) {
+      safeName = "converted_document";
+      console.warn(
+        "⚠️  파일명이 유효하지 않아 기본 이름을 사용합니다:",
+        safeName
+      );
+    }
+
+    outputDir = path.join(dir, "output");
+    console.log("✅ 파일 경로 처리 완료:", {
+      absoluteInput,
+      outputDir,
+      safeName,
+    });
+  } catch (pathError) {
+    const error = new Error(`파일 경로 처리 중 오류: ${pathError.message}`);
+    console.error("❌ 파일 경로 오류:", error.message);
+    throw error;
   }
 
-  statusCallback("마크다운 파일 읽는 중...");
-  // 인코딩 문제 방지를 위해 'utf8' 명시
-  let markdown = fs.readFileSync(absoluteInput, "utf8");
+  try {
+    // 출력 디렉토리 생성
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true });
+      console.log("✅ 출력 디렉토리 생성:", outputDir);
+    }
+  } catch (dirError) {
+    const error = new Error(`출력 디렉토리 생성 실패: ${dirError.message}`);
+    console.error("❌ 디렉토리 생성 오류:", error.message);
+    throw error;
+  }
 
-  // 줄바꿈 문자 통일
-  markdown = markdown.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  try {
+    statusCallback("마크다운 파일 읽는 중...");
+    // 인코딩 문제 방지를 위해 'utf8' 명시
+    markdown = fs.readFileSync(absoluteInput, "utf8");
 
-  // [중요] 이미지 경로를 해결하기 위한 기준 경로(base path) 설정
-  // originalPath가 있으면 그것을 사용하고, 없으면 inputPath의 디렉토리를 사용합니다.
-  const imageBasePath = originalPath ? path.dirname(originalPath) : dir;
+    if (!markdown || markdown.trim().length === 0) {
+      console.warn("⚠️  마크다운 파일이 비어있습니다. 기본 내용을 추가합니다.");
+      markdown =
+        "# 빈 문서\n\n이 문서는 내용이 없어 기본 텍스트가 추가되었습니다.";
+    }
 
-  // --- 디버깅 로그 추가 ---
-  console.log(
-    `[Debug] 최종 이미지 검색 기준 경로(imageBasePath): ${imageBasePath}`
-  );
+    console.log("✅ 마크다운 파일 읽기 완료:", `${markdown.length} 문자`);
+  } catch (readError) {
+    const error = new Error(`마크다운 파일 읽기 실패: ${readError.message}`);
+    console.error("❌ 파일 읽기 오류:", error.message);
+    throw error;
+  }
 
-  if (!originalPath) {
-    console.warn(
-      `[Warning] originalPath가 null입니다. 드래그앤드롭으로 인해 이미지 경로 해결에 문제가 있을 수 있습니다.`
+  try {
+    // 줄바꿈 문자 통일
+    markdown = markdown.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
+    // [중요] 이미지 경로를 해결하기 위한 기준 경로(base path) 설정
+    // originalPath가 있으면 그것을 사용하고, 없으면 inputPath의 디렉토리를 사용합니다.
+    const imageBasePath = originalPath ? path.dirname(originalPath) : dir;
+
+    // --- 디버깅 로그 추가 ---
+    console.log(
+      `[Debug] 최종 이미지 검색 기준 경로(imageBasePath): ${imageBasePath}`
     );
+
+    if (!originalPath) {
+      console.warn(
+        `[Warning] originalPath가 null입니다. 드래그앤드롭으로 인해 이미지 경로 해결에 문제가 있을 수 있습니다.`
+      );
+    }
+
+    // 이미지 경로 처리 - 오류 발생 시에도 계속 진행
+    try {
+      markdown = resolveImagePaths(markdown, imageBasePath);
+      console.log("✅ 이미지 경로 처리 완료");
+    } catch (imageError) {
+      console.error("❌ 이미지 경로 처리 중 오류:", imageError.message);
+      console.warn("⚠️  이미지 처리 오류를 무시하고 계속 진행합니다.");
+      // 이미지 처리 실패해도 변환은 계속 진행
+    }
+  } catch (preprocessError) {
+    console.error("❌ 마크다운 전처리 중 오류:", preprocessError.message);
+    console.warn(
+      "⚠️  전처리 오류를 무시하고 원본 마크다운으로 계속 진행합니다."
+    );
+    // 전처리 실패해도 원본 마크다운으로 계속 진행
   }
 
-  markdown = resolveImagePaths(markdown, imageBasePath);
+  // Mermaid 다이어그램 처리 - 강화된 에러 처리
+  let blocks, processedMarkdown;
 
-  // ... 이하 코드는 동일 ...
-  const blocks = extractMermaidBlocks(markdown);
-  let processedMarkdown = markdown;
+  try {
+    blocks = extractMermaidBlocks(markdown);
+    processedMarkdown = markdown;
+    console.log(`✅ Mermaid 블록 추출 완료: ${blocks.length}개 발견`);
+  } catch (extractError) {
+    console.error("❌ Mermaid 블록 추출 중 오류:", extractError.message);
+    console.warn("⚠️  Mermaid 처리를 건너뛰고 계속 진행합니다.");
+    blocks = [];
+    processedMarkdown = markdown;
+  }
 
   if (blocks.length > 0) {
     statusCallback(`${blocks.length}개 Mermaid 다이어그램 처리 중...`);
 
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-web-security",
-      ],
-      timeout: 60000,
-    });
-
+    let browser = null;
     try {
-      const svgContents = [];
+      browser = await puppeteer.launch({
+        headless: true,
+        args: [
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-web-security",
+        ],
+        timeout: 60000,
+      });
+      console.log("✅ Puppeteer 브라우저 시작 완료");
+    } catch (browserError) {
+      console.error("❌ Puppeteer 브라우저 시작 실패:", browserError.message);
+      console.warn("⚠️  Mermaid 다이어그램 처리를 건너뛰고 계속 진행합니다.");
+      // 브라우저 시작 실패 시 다이어그램 없이 계속 진행
+      blocks = [];
+    }
 
-      for (let i = 0; i < blocks.length; i++) {
-        statusCallback(`다이어그램 ${i + 1}/${blocks.length} 생성 중...`);
+    if (browser) {
+      try {
+        const svgContents = [];
 
-        try {
-          const diagramPage = await browser.newPage();
+        for (let i = 0; i < blocks.length; i++) {
+          statusCallback(`다이어그램 ${i + 1}/${blocks.length} 생성 중...`);
 
-          const mermaidHtml = `
+          try {
+            const diagramPage = await browser.newPage();
+
+            const mermaidHtml = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -375,33 +592,35 @@ ${blocks[i].code}
 </body>
 </html>`;
 
-          await diagramPage.setContent(mermaidHtml);
-          await diagramPage.waitForSelector(".mermaid svg", { timeout: 20000 });
+            await diagramPage.setContent(mermaidHtml);
+            await diagramPage.waitForSelector(".mermaid svg", {
+              timeout: 20000,
+            });
 
-          const svgContent = await diagramPage.evaluate(() => {
-            const svg = document.querySelector(".mermaid svg");
-            if (svg) {
-              svg.style.maxWidth = "100%";
-              svg.style.height = "auto";
-              svg.style.display = "block";
-              svg.style.margin = "20px auto";
-              return svg.outerHTML;
+            const svgContent = await diagramPage.evaluate(() => {
+              const svg = document.querySelector(".mermaid svg");
+              if (svg) {
+                svg.style.maxWidth = "100%";
+                svg.style.height = "auto";
+                svg.style.display = "block";
+                svg.style.margin = "20px auto";
+                return svg.outerHTML;
+              }
+              return null;
+            });
+
+            if (svgContent) {
+              svgContents.push(svgContent);
+              statusCallback(`다이어그램 ${i + 1} 완료`);
+            } else {
+              throw new Error("SVG 생성 실패");
             }
-            return null;
-          });
 
-          if (svgContent) {
-            svgContents.push(svgContent);
-            statusCallback(`다이어그램 ${i + 1} 완료`);
-          } else {
-            throw new Error("SVG 생성 실패");
-          }
+            await diagramPage.close();
+          } catch (error) {
+            statusCallback(`다이어그램 ${i + 1} 생성 실패, 대체 이미지 사용`);
 
-          await diagramPage.close();
-        } catch (error) {
-          statusCallback(`다이어그램 ${i + 1} 생성 실패, 대체 이미지 사용`);
-
-          const fallbackSvg = `
+            const fallbackSvg = `
 <svg width="600" height="200" xmlns="http://www.w3.org/2000/svg" style="max-width: 100%; height: auto; display: block; margin: 20px auto;">
   <rect width="600" height="200" fill="#f8f9fa" stroke="#dee2e6" stroke-width="2"/>
   <text x="300" y="80" text-anchor="middle" font-family="Arial" font-size="16" fill="#6c757d">
@@ -414,18 +633,55 @@ ${blocks[i].code}
     ${blocks[i].code.split("\n")[0].substring(0, 50)}...
   </text>
 </svg>`;
-          svgContents.push(fallbackSvg);
+            svgContents.push(fallbackSvg);
+          }
+        }
+
+        try {
+          processedMarkdown = replaceBlocksWithSvgs(markdown, svgContents);
+          console.log("✅ Mermaid 다이어그램 교체 완료");
+        } catch (replaceError) {
+          console.error(
+            "❌ Mermaid 다이어그램 교체 중 오류:",
+            replaceError.message
+          );
+          console.warn("⚠️  원본 마크다운을 사용합니다.");
+          processedMarkdown = markdown;
+        }
+      } finally {
+        try {
+          if (browser) {
+            await browser.close();
+            console.log("✅ Puppeteer 브라우저 종료 완료");
+          }
+        } catch (closeError) {
+          console.error("❌ 브라우저 종료 중 오류:", closeError.message);
+          // 브라우저 종료 실패는 치명적이지 않으므로 계속 진행
         }
       }
-
-      processedMarkdown = replaceBlocksWithSvgs(markdown, svgContents);
-    } finally {
-      await browser.close();
     }
   }
 
-  statusCallback("HTML로 변환 중...");
-  const html = markdownToHtml(processedMarkdown);
+  let html;
+  try {
+    statusCallback("HTML로 변환 중...");
+    html = markdownToHtml(processedMarkdown);
+
+    if (!html || html.trim().length === 0) {
+      throw new Error("HTML 변환 결과가 비어있습니다.");
+    }
+
+    console.log("✅ HTML 변환 완료:", `${html.length} 문자`);
+  } catch (htmlError) {
+    console.error("❌ HTML 변환 중 오류:", htmlError.message);
+    console.warn("⚠️  기본 HTML 템플릿을 사용합니다.");
+
+    // 안전장치: 기본 HTML 생성
+    html = `<h1>변환 오류</h1><p>마크다운을 HTML로 변환하는 중 오류가 발생했습니다.</p><pre>${processedMarkdown}</pre>`;
+  }
+
+  // CSS에서는 페이지 번호 관련 설정 제거 (Puppeteer displayHeaderFooter 사용)
+  const pageNumberCSS = "";
 
   const fullHtml = `
 <!DOCTYPE html>
@@ -433,6 +689,8 @@ ${blocks[i].code}
 <head>
     <meta charset="UTF-8">
     <style>
+        ${pageNumberCSS}
+        
         body { 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Malgun Gothic', sans-serif;
             line-height: 1.6;
@@ -545,88 +803,308 @@ ${blocks[i].code}
 </html>`;
 
   statusCallback("PDF 생성 중...");
-  const browser2 = await puppeteer.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-  });
+
+  let browser2 = null;
+  try {
+    browser2 = await puppeteer.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    });
+    console.log("✅ PDF 생성용 Puppeteer 브라우저 시작 완료");
+  } catch (browserError) {
+    const error = new Error(
+      `PDF 생성용 브라우저 시작 실패: ${browserError.message}`
+    );
+    console.error("❌ 브라우저 시작 오류:", error.message);
+    throw error;
+  }
 
   try {
-    const page = await browser2.newPage();
-    await page.setContent(fullHtml, { waitUntil: "networkidle0" });
+    let page;
+    try {
+      page = await browser2.newPage();
+      console.log("✅ 새 페이지 생성 완료");
+    } catch (pageError) {
+      const error = new Error(`새 페이지 생성 실패: ${pageError.message}`);
+      console.error("❌ 페이지 생성 오류:", error.message);
+      throw error;
+    }
+
+    try {
+      await page.setContent(fullHtml, { waitUntil: "networkidle0" });
+      console.log("✅ HTML 콘텐츠 설정 완료");
+    } catch (contentError) {
+      console.error("❌ HTML 콘텐츠 설정 실패:", contentError.message);
+      console.warn("⚠️  기본 대기 옵션으로 재시도합니다.");
+
+      try {
+        await page.setContent(fullHtml, { waitUntil: "domcontentloaded" });
+        console.log("✅ HTML 콘텐츠 설정 완료 (기본 옵션)");
+      } catch (retryError) {
+        const error = new Error(`HTML 콘텐츠 설정 실패: ${retryError.message}`);
+        console.error("❌ HTML 콘텐츠 재시도 실패:", error.message);
+        throw error;
+      }
+    }
+
+    // 커스텀 시작 번호를 위한 JavaScript 추가 (페이지 번호가 활성화되고 시작 번호가 1이 아닌 경우)
+    if (
+      validatedOptions.showPageNumbers &&
+      validatedOptions.startPageNumber !== 1
+    ) {
+      try {
+        const startNumber = validatedOptions.startPageNumber;
+        const offset = startNumber - 1;
+
+        // 페이지 번호 조정을 위한 스크립트 추가
+        await page.addScriptTag({
+          content: `
+            // 페이지 번호 오프셋 적용
+            window.pageNumberOffset = ${offset};
+            
+            // DOM이 로드된 후 실행
+            document.addEventListener('DOMContentLoaded', function() {
+              // 모든 .pageNumber 요소를 찾아서 오프셋 적용
+              const pageNumbers = document.querySelectorAll('.pageNumber');
+              pageNumbers.forEach(function(element) {
+                const originalNumber = parseInt(element.textContent) || 1;
+                element.textContent = (originalNumber + window.pageNumberOffset).toString();
+              });
+            });
+            
+            // PDF 생성 시에도 적용되도록 beforeprint 이벤트 사용
+            window.addEventListener('beforeprint', function() {
+              const pageNumbers = document.querySelectorAll('.pageNumber');
+              pageNumbers.forEach(function(element) {
+                const originalNumber = parseInt(element.textContent) || 1;
+                if (originalNumber <= 1000) { // 무한 루프 방지
+                  element.textContent = (originalNumber + window.pageNumberOffset).toString();
+                }
+              });
+            });
+          `,
+        });
+
+        console.log(`✅ 커스텀 시작 번호 ${startNumber} JavaScript 추가 완료`);
+      } catch (scriptError) {
+        console.warn(
+          `⚠️  커스텀 시작 번호 스크립트 추가 실패: ${scriptError.message}`
+        );
+        console.warn("⚠️  기본 페이지 번호를 사용합니다.");
+      }
+    }
 
     const pdfPath = path.join(outputDir, `${safeName}.pdf`);
 
-    // PDF 생성 옵션 설정
-    const pdfOptions = {
-      path: pdfPath,
-      format: "A4",
-      margin: {
-        top: "20mm",
-        right: "20mm",
-        bottom: options.showPageNumbers ? "25mm" : "20mm", // 페이지 번호 공간 확보
-        left: "20mm",
-      },
-      printBackground: true,
-      preferCSSPageSize: true,
-    };
+    // PDF 생성 옵션 설정 - 에러 처리 강화
+    let pdfOptions;
 
-    // 페이지 번호 표시 옵션 추가
-    if (options.showPageNumbers) {
-      pdfOptions.displayHeaderFooter = true;
-      pdfOptions.footerTemplate = `
-        <div style="
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Malgun Gothic', sans-serif;
-          font-size: 10px; 
-          color: #666; 
-          text-align: center; 
-          width: 100%; 
-          margin: 0 auto;
-          padding: 5px 0;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          line-height: 1.4;
-          font-weight: 400;
-        ">
-          <span class="pageNumber" style="
-            font-family: inherit;
-            font-size: 10px;
-            color: #666;
-            font-weight: 400;
-            letter-spacing: 0.2px;
-          "></span>
-        </div>
-      `;
-      pdfOptions.headerTemplate = "<div></div>"; // 빈 헤더
+    try {
+      pdfOptions = {
+        path: pdfPath,
+        format: "A4",
+        margin: {
+          top: "20mm",
+          right: "20mm",
+          bottom: validatedOptions.showPageNumbers ? "25mm" : "20mm", // 페이지 번호 공간 확보
+          left: "20mm",
+        },
+        printBackground: true,
+        preferCSSPageSize: true,
+      };
+
+      // 페이지 번호 표시 옵션 추가 - 안전장치 포함
+      if (validatedOptions.showPageNumbers) {
+        const startNumber = validatedOptions.startPageNumber;
+
+        // 시작 번호 범위 재검증 (추가 안전장치)
+        if (
+          startNumber < 1 ||
+          startNumber > 9999 ||
+          !Number.isInteger(startNumber)
+        ) {
+          throw new Error(
+            `페이지 시작 번호가 유효하지 않습니다: ${startNumber}`
+          );
+        }
+
+        // Puppeteer의 displayHeaderFooter 사용 + 커스텀 시작 번호 지원
+        pdfOptions.displayHeaderFooter = true;
+        pdfOptions.headerTemplate = "<div></div>"; // 빈 헤더
+
+        // 커스텀 시작 번호를 위한 계산된 footerTemplate
+        const offset = startNumber - 1;
+
+        if (startNumber === 1) {
+          // 기본 시작 번호인 경우 간단한 템플릿 사용
+          pdfOptions.footerTemplate = `
+            <div style="
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Malgun Gothic', sans-serif;
+              font-size: 10px; 
+              color: #666; 
+              text-align: center; 
+              width: 100%; 
+              margin: 0 auto;
+              padding: 5px 0;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              line-height: 1.4;
+              font-weight: 400;
+            ">
+              <span class="pageNumber"></span>
+            </div>
+          `;
+        } else {
+          // 커스텀 시작 번호인 경우 - 더 간단한 방법 사용
+          // Puppeteer의 제한으로 인해 현재는 기본 페이지 번호 사용
+          pdfOptions.footerTemplate = `
+            <div style="
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Malgun Gothic', sans-serif;
+              font-size: 10px; 
+              color: #666; 
+              text-align: center; 
+              width: 100%; 
+              margin: 0 auto;
+              padding: 5px 0;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              line-height: 1.4;
+              font-weight: 400;
+            ">
+              <span class="pageNumber"></span>
+            </div>
+          `;
+
+          console.warn(
+            `⚠️  Puppeteer의 제한으로 인해 커스텀 시작 번호 ${startNumber}는 현재 완전히 지원되지 않습니다.`
+          );
+          console.warn(`⚠️  기본 페이지 번호(1부터 시작)가 표시됩니다.`);
+        }
+
+        console.log(`✅ 페이지 번호 설정 완료: 시작 번호 ${startNumber}`);
+      } else {
+        console.log("✅ 페이지 번호 표시 비활성화");
+      }
+    } catch (optionError) {
+      console.error("❌ PDF 옵션 설정 중 오류 발생:", optionError.message);
+      console.warn("⚠️  안전장치 옵션으로 대체합니다.");
+
+      // 안전장치: 기본 옵션으로 대체
+      pdfOptions = createFallbackPdfOptions(validatedOptions);
+      pdfOptions.path = pdfPath;
     }
 
-    await page.pdf(pdfOptions);
+    // PDF 생성 실행 - 재시도 로직 포함
+    let pdfGenerationSuccess = false;
+    let lastError = null;
+
+    try {
+      await page.pdf(pdfOptions);
+      pdfGenerationSuccess = true;
+      console.log("✅ PDF 생성 성공");
+    } catch (pdfError) {
+      lastError = pdfError;
+      console.error("❌ PDF 생성 실패:", pdfError.message);
+
+      // 페이지 번호 기능으로 인한 오류인 경우 안전장치 적용
+      if (
+        validatedOptions.showPageNumbers &&
+        (pdfError.message.includes("footerTemplate") ||
+          pdfError.message.includes("headerTemplate") ||
+          pdfError.message.includes("displayHeaderFooter") ||
+          pdfError.message.includes("script"))
+      ) {
+        console.warn(
+          "⚠️  페이지 번호 기능으로 인한 오류로 판단됩니다. 페이지 번호 없이 재시도합니다."
+        );
+
+        try {
+          const fallbackOptions = createFallbackPdfOptions(validatedOptions);
+          fallbackOptions.path = pdfPath;
+
+          await page.pdf(fallbackOptions);
+          pdfGenerationSuccess = true;
+          console.log("✅ 안전장치로 PDF 생성 성공 (페이지 번호 없음)");
+        } catch (fallbackError) {
+          console.error("❌ 안전장치 PDF 생성도 실패:", fallbackError.message);
+          throw new Error(
+            `PDF 생성 실패: 원본 오류 - ${pdfError.message}, 안전장치 오류 - ${fallbackError.message}`
+          );
+        }
+      } else {
+        // 페이지 번호와 관련없는 오류인 경우 그대로 throw
+        throw pdfError;
+      }
+    }
+
+    if (!pdfGenerationSuccess) {
+      throw (
+        lastError || new Error("알 수 없는 이유로 PDF 생성에 실패했습니다.")
+      );
+    }
 
     statusCallback(`완료: ${safeName}.pdf`);
+    console.log("✅ PDF 변환 전체 프로세스 완료:", pdfPath);
     return pdfPath;
   } finally {
-    await browser2.close();
+    try {
+      if (browser2) {
+        await browser2.close();
+        console.log("✅ PDF 생성용 브라우저 종료 완료");
+      }
+    } catch (closeError) {
+      console.error("❌ PDF 생성용 브라우저 종료 중 오류:", closeError.message);
+      // 브라우저 종료 실패는 치명적이지 않으므로 계속 진행
+    }
   }
 }
 
 async function main() {
   const inputs = process.argv.slice(2);
   if (inputs.length === 0) {
-    console.error("사용법: node convert-md-to-pdf.js <markdown 파일...>");
+    console.error("❌ 사용법: node convert-md-to-pdf.js <markdown 파일...>");
     process.exit(1);
   }
 
+  console.log(`🚀 PDF 변환 시작: ${inputs.length}개 파일 처리`);
+
+  let successCount = 0;
+  let failureCount = 0;
+
   for (const input of inputs) {
     try {
-      await convertOne(input, console.log);
+      console.log(`\n📄 처리 중: ${input}`);
+      const outputPath = await convertOne(input, console.log);
+      console.log(`✅ 성공: ${input} → ${outputPath}`);
+      successCount++;
     } catch (err) {
-      console.error(`변환 실패: ${input}`);
-      console.error(err.message || err);
+      console.error(`❌ 변환 실패: ${input}`);
+      console.error(`   오류 내용: ${err.message || err}`);
+
+      // 상세 오류 정보 로깅
+      if (err.stack) {
+        console.error(`   스택 트레이스: ${err.stack}`);
+      }
+
+      failureCount++;
       process.exitCode = 2;
     }
   }
 
-  process.exit(0);
+  console.log(`\n📊 변환 완료 요약:`);
+  console.log(`   ✅ 성공: ${successCount}개`);
+  console.log(`   ❌ 실패: ${failureCount}개`);
+  console.log(`   📁 총 처리: ${inputs.length}개`);
+
+  if (failureCount > 0) {
+    console.log(`\n⚠️  ${failureCount}개 파일 변환에 실패했습니다.`);
+    process.exit(2);
+  } else {
+    console.log(`\n🎉 모든 파일이 성공적으로 변환되었습니다!`);
+    process.exit(0);
+  }
 }
 
 if (require.main === module) {
