@@ -280,119 +280,12 @@ function markdownToHtml(markdown) {
 
   return html;
 }
-// 옵션 검증 함수 - 강화된 에러 처리 및 안전장치
-function validateOptions(options) {
-  const validated = { ...options };
-  const errors = [];
-  const warnings = [];
-
-  // showPageNumbers 검증 및 기본값 설정
-  if (typeof validated.showPageNumbers !== "boolean") {
-    warnings.push(
-      "showPageNumbers가 boolean 타입이 아닙니다. 기본값 true를 사용합니다."
-    );
-    validated.showPageNumbers = true;
-  }
-
-  // startPageNumber 상세 검증
-  const originalStartNumber = validated.startPageNumber;
-  let isValidStartNumber = true;
-  let validationMessage = "";
-
-  if (
-    validated.startPageNumber === undefined ||
-    validated.startPageNumber === null
-  ) {
-    validationMessage =
-      "시작 번호가 지정되지 않았습니다. 기본값 1을 사용합니다.";
-    validated.startPageNumber = 1;
-  } else if (typeof validated.startPageNumber !== "number") {
-    validationMessage = `시작 번호가 숫자가 아닙니다 (입력값: ${originalStartNumber}). 기본값 1을 사용합니다.`;
-    validated.startPageNumber = 1;
-    isValidStartNumber = false;
-  } else if (!Number.isInteger(validated.startPageNumber)) {
-    validationMessage = `시작 번호가 정수가 아닙니다 (입력값: ${originalStartNumber}). 기본값 1을 사용합니다.`;
-    validated.startPageNumber = 1;
-    isValidStartNumber = false;
-  } else if (validated.startPageNumber < 1) {
-    validationMessage = `시작 번호가 1보다 작습니다 (입력값: ${originalStartNumber}). 기본값 1을 사용합니다.`;
-    validated.startPageNumber = 1;
-    isValidStartNumber = false;
-  } else if (validated.startPageNumber > 9999) {
-    validationMessage = `시작 번호가 최대값 9999를 초과합니다 (입력값: ${originalStartNumber}). 최대값 9999를 사용합니다.`;
-    validated.startPageNumber = 9999;
-    isValidStartNumber = false;
-  }
-
-  if (validationMessage) {
-    if (isValidStartNumber) {
-      warnings.push(validationMessage);
-    } else {
-      errors.push(validationMessage);
-    }
-  }
-
-  // 페이지 번호 표시가 비활성화된 경우 시작 번호 무시
-  if (!validated.showPageNumbers) {
-    if (originalStartNumber && originalStartNumber !== 1) {
-      warnings.push(
-        "페이지 번호 표시가 비활성화되어 있어 시작 번호가 무시됩니다."
-      );
-    }
-    validated.startPageNumber = 1;
-  }
-
-  // 로깅
-  if (errors.length > 0) {
-    console.error("❌ 옵션 검증 오류:");
-    errors.forEach((error) => console.error(`   - ${error}`));
-  }
-
-  if (warnings.length > 0) {
-    console.warn("⚠️  옵션 검증 경고:");
-    warnings.forEach((warning) => console.warn(`   - ${warning}`));
-  }
-
-  // 검증 결과 로깅
-  if (errors.length > 0 || warnings.length > 0) {
-    console.log("✅ 최종 적용된 옵션:", {
-      showPageNumbers: validated.showPageNumbers,
-      startPageNumber: validated.startPageNumber,
-    });
-  }
-
-  return validated;
-}
-
-// PDF 생성 실패 시 안전장치 함수
-function createFallbackPdfOptions(validatedOptions) {
-  const fallbackOptions = {
-    path: null, // 호출자에서 설정
-    format: "A4",
-    margin: {
-      top: "20mm",
-      right: "20mm",
-      bottom: "20mm", // 페이지 번호 없이 기본 여백
-      left: "20mm",
-    },
-    printBackground: true,
-    preferCSSPageSize: true,
-    displayHeaderFooter: false, // 안전장치에서는 페이지 번호 비활성화
-    headerTemplate: "<div></div>",
-    footerTemplate: "<div></div>",
-  };
-
-  console.warn(
-    "⚠️  PDF 생성 중 오류로 인해 안전장치 옵션을 사용합니다 (페이지 번호 없음)."
-  );
-  return fallbackOptions;
-}
 
 async function convertOne(
   inputPath,
   statusCallback = () => {},
   originalPath = null, // GUI에서 반드시 원본 파일의 전체 경로를 이 인자로 전달해야 합니다.
-  options = { showPageNumbers: true, startPageNumber: 1 } // 페이지 번호 표시 옵션 및 시작 번호 (기본값: true, 1)
+  options = { showPageNumbers: true } // 페이지 번호 표시 옵션 (기본값: true)
 ) {
   // 입력 매개변수 검증
   if (!inputPath || typeof inputPath !== "string") {
@@ -408,23 +301,11 @@ async function convertOne(
     statusCallback = () => {};
   }
 
-  // 옵션 검증 - 강화된 에러 처리
-  let validatedOptions;
-  try {
-    validatedOptions = validateOptions(options);
-  } catch (validationError) {
-    console.error("❌ 옵션 검증 중 치명적 오류:", validationError.message);
-    console.warn("⚠️  기본 옵션으로 대체합니다.");
-    validatedOptions = { showPageNumbers: true, startPageNumber: 1 };
-  }
-
   // --- 디버깅 로그 추가 ---
   console.log("=============================================");
   console.log("[Debug] convertOne 함수가 수신한 경로 정보:");
   console.log("  - inputPath (처리 대상 경로):", inputPath);
   console.log("  - originalPath (이미지 기준 경로용):", originalPath);
-  console.log("  - 원본 options:", options);
-  console.log("  - 검증된 options:", validatedOptions);
   console.log("=============================================");
 
   let absoluteInput, dir, base, safeName, outputDir, markdown;
@@ -847,202 +728,60 @@ ${blocks[i].code}
       }
     }
 
-    // 커스텀 시작 번호를 위한 JavaScript 추가 (페이지 번호가 활성화되고 시작 번호가 1이 아닌 경우)
-    if (
-      validatedOptions.showPageNumbers &&
-      validatedOptions.startPageNumber !== 1
-    ) {
-      try {
-        const startNumber = validatedOptions.startPageNumber;
-        const offset = startNumber - 1;
 
-        // 페이지 번호 조정을 위한 스크립트 추가
-        await page.addScriptTag({
-          content: `
-            // 페이지 번호 오프셋 적용
-            window.pageNumberOffset = ${offset};
-            
-            // DOM이 로드된 후 실행
-            document.addEventListener('DOMContentLoaded', function() {
-              // 모든 .pageNumber 요소를 찾아서 오프셋 적용
-              const pageNumbers = document.querySelectorAll('.pageNumber');
-              pageNumbers.forEach(function(element) {
-                const originalNumber = parseInt(element.textContent) || 1;
-                element.textContent = (originalNumber + window.pageNumberOffset).toString();
-              });
-            });
-            
-            // PDF 생성 시에도 적용되도록 beforeprint 이벤트 사용
-            window.addEventListener('beforeprint', function() {
-              const pageNumbers = document.querySelectorAll('.pageNumber');
-              pageNumbers.forEach(function(element) {
-                const originalNumber = parseInt(element.textContent) || 1;
-                if (originalNumber <= 1000) { // 무한 루프 방지
-                  element.textContent = (originalNumber + window.pageNumberOffset).toString();
-                }
-              });
-            });
-          `,
-        });
-
-        console.log(`✅ 커스텀 시작 번호 ${startNumber} JavaScript 추가 완료`);
-      } catch (scriptError) {
-        console.warn(
-          `⚠️  커스텀 시작 번호 스크립트 추가 실패: ${scriptError.message}`
-        );
-        console.warn("⚠️  기본 페이지 번호를 사용합니다.");
-      }
-    }
 
     const pdfPath = path.join(outputDir, `${safeName}.pdf`);
 
     // PDF 생성 옵션 설정 - 에러 처리 강화
     let pdfOptions;
 
-    try {
-      pdfOptions = {
-        path: pdfPath,
-        format: "A4",
-        margin: {
-          top: "20mm",
-          right: "20mm",
-          bottom: validatedOptions.showPageNumbers ? "25mm" : "20mm", // 페이지 번호 공간 확보
-          left: "20mm",
-        },
-        printBackground: true,
-        preferCSSPageSize: true,
-      };
+    pdfOptions = {
+      path: pdfPath,
+      format: "A4",
+      margin: {
+        top: "20mm",
+        right: "20mm",
+        bottom: options && options.showPageNumbers ? "25mm" : "20mm", // 페이지 번호 공간 확보
+        left: "20mm",
+      },
+      printBackground: true,
+      preferCSSPageSize: true,
+    };
 
-      // 페이지 번호 표시 옵션 추가 - 안전장치 포함
-      if (validatedOptions.showPageNumbers) {
-        const startNumber = validatedOptions.startPageNumber;
-
-        // 시작 번호 범위 재검증 (추가 안전장치)
-        if (
-          startNumber < 1 ||
-          startNumber > 9999 ||
-          !Number.isInteger(startNumber)
-        ) {
-          throw new Error(
-            `페이지 시작 번호가 유효하지 않습니다: ${startNumber}`
-          );
-        }
-
-        // Puppeteer의 displayHeaderFooter 사용 + 커스텀 시작 번호 지원
-        pdfOptions.displayHeaderFooter = true;
-        pdfOptions.headerTemplate = "<div></div>"; // 빈 헤더
-
-        // 커스텀 시작 번호를 위한 계산된 footerTemplate
-        const offset = startNumber - 1;
-
-        if (startNumber === 1) {
-          // 기본 시작 번호인 경우 간단한 템플릿 사용
-          pdfOptions.footerTemplate = `
-            <div style="
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Malgun Gothic', sans-serif;
-              font-size: 10px; 
-              color: #666; 
-              text-align: center; 
-              width: 100%; 
-              margin: 0 auto;
-              padding: 5px 0;
-              display: flex;
-              justify-content: center;
-              align-items: center;
-              line-height: 1.4;
-              font-weight: 400;
-            ">
-              <span class="pageNumber"></span>
-            </div>
-          `;
-        } else {
-          // 커스텀 시작 번호인 경우 - 더 간단한 방법 사용
-          // Puppeteer의 제한으로 인해 현재는 기본 페이지 번호 사용
-          pdfOptions.footerTemplate = `
-            <div style="
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Malgun Gothic', sans-serif;
-              font-size: 10px; 
-              color: #666; 
-              text-align: center; 
-              width: 100%; 
-              margin: 0 auto;
-              padding: 5px 0;
-              display: flex;
-              justify-content: center;
-              align-items: center;
-              line-height: 1.4;
-              font-weight: 400;
-            ">
-              <span class="pageNumber"></span>
-            </div>
-          `;
-
-          console.warn(
-            `⚠️  Puppeteer의 제한으로 인해 커스텀 시작 번호 ${startNumber}는 현재 완전히 지원되지 않습니다.`
-          );
-          console.warn(`⚠️  기본 페이지 번호(1부터 시작)가 표시됩니다.`);
-        }
-
-        console.log(`✅ 페이지 번호 설정 완료: 시작 번호 ${startNumber}`);
-      } else {
-        console.log("✅ 페이지 번호 표시 비활성화");
-      }
-    } catch (optionError) {
-      console.error("❌ PDF 옵션 설정 중 오류 발생:", optionError.message);
-      console.warn("⚠️  안전장치 옵션으로 대체합니다.");
-
-      // 안전장치: 기본 옵션으로 대체
-      pdfOptions = createFallbackPdfOptions(validatedOptions);
-      pdfOptions.path = pdfPath;
+    // 페이지 번호 표시 옵션 처리
+    if (options && options.showPageNumbers) {
+      pdfOptions.displayHeaderFooter = true;
+      pdfOptions.headerTemplate = "<div></div>"; // 빈 헤더
+      pdfOptions.footerTemplate = `
+        <div style="
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Malgun Gothic', sans-serif;
+          font-size: 10px; 
+          color: #666; 
+          text-align: center; 
+          width: 100%; 
+          margin: 0 auto;
+          padding: 5px 0;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          line-height: 1.4;
+          font-weight: 400;
+        ">
+          <span class="pageNumber"></span>
+        </div>
+      `;
+      console.log("✅ 페이지 번호 표시 활성화");
+    } else {
+      console.log("✅ 페이지 번호 표시 비활성화");
     }
 
-    // PDF 생성 실행 - 재시도 로직 포함
-    let pdfGenerationSuccess = false;
-    let lastError = null;
-
+    // PDF 생성 실행
     try {
       await page.pdf(pdfOptions);
-      pdfGenerationSuccess = true;
       console.log("✅ PDF 생성 성공");
     } catch (pdfError) {
-      lastError = pdfError;
       console.error("❌ PDF 생성 실패:", pdfError.message);
-
-      // 페이지 번호 기능으로 인한 오류인 경우 안전장치 적용
-      if (
-        validatedOptions.showPageNumbers &&
-        (pdfError.message.includes("footerTemplate") ||
-          pdfError.message.includes("headerTemplate") ||
-          pdfError.message.includes("displayHeaderFooter") ||
-          pdfError.message.includes("script"))
-      ) {
-        console.warn(
-          "⚠️  페이지 번호 기능으로 인한 오류로 판단됩니다. 페이지 번호 없이 재시도합니다."
-        );
-
-        try {
-          const fallbackOptions = createFallbackPdfOptions(validatedOptions);
-          fallbackOptions.path = pdfPath;
-
-          await page.pdf(fallbackOptions);
-          pdfGenerationSuccess = true;
-          console.log("✅ 안전장치로 PDF 생성 성공 (페이지 번호 없음)");
-        } catch (fallbackError) {
-          console.error("❌ 안전장치 PDF 생성도 실패:", fallbackError.message);
-          throw new Error(
-            `PDF 생성 실패: 원본 오류 - ${pdfError.message}, 안전장치 오류 - ${fallbackError.message}`
-          );
-        }
-      } else {
-        // 페이지 번호와 관련없는 오류인 경우 그대로 throw
-        throw pdfError;
-      }
-    }
-
-    if (!pdfGenerationSuccess) {
-      throw (
-        lastError || new Error("알 수 없는 이유로 PDF 생성에 실패했습니다.")
-      );
+      throw pdfError;
     }
 
     statusCallback(`완료: ${safeName}.pdf`);

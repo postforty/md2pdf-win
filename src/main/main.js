@@ -76,22 +76,7 @@ ipcMain.handle("dialog:openFile", async () => {
 const { convertOne } = require("../utils/convert-md-to-pdf.js");
 
 // 옵션 검증 및 기본값 처리 함수
-function validateAndSetDefaultOptions(options) {
-  const defaultOptions = {
-    showPageNumbers: true,
-  };
 
-  if (!options || typeof options !== "object") {
-    return defaultOptions;
-  }
-
-  return {
-    showPageNumbers:
-      typeof options.showPageNumbers === "boolean"
-        ? options.showPageNumbers
-        : defaultOptions.showPageNumbers,
-  };
-}
 
 // 파일 내용 처리를 위한 핸들러
 ipcMain.handle("handle-file-content", async (event, fileData, options) => {
@@ -108,9 +93,7 @@ ipcMain.handle("handle-file-content", async (event, fileData, options) => {
     console.log("Received file data:", fileData);
     console.log("Received options:", options);
 
-    // 옵션 검증 및 기본값 설정
-    const validatedOptions = validateAndSetDefaultOptions(options);
-    console.log("Validated options:", validatedOptions);
+    console.log("Received options:", options);
 
     if (!fileData || !fileData.name || !fileData.content) {
       statusCallback(`❌ 잘못된 파일 데이터입니다`);
@@ -129,13 +112,12 @@ ipcMain.handle("handle-file-content", async (event, fileData, options) => {
 
     // originalPath가 있으면 전달, 없으면 null (드래그앤드롭의 경우)
     const originalPath = fileData.originalPath || null;
-    // Pass validatedOptions to convertOne
-    await convertOne(
-      tempFilePath,
-      statusCallback,
-      originalPath,
-      validatedOptions
-    );
+    // 간단한 옵션 처리
+    const processedOptions = {
+      showPageNumbers: options && typeof options.showPageNumbers === "boolean" ? options.showPageNumbers : true
+    };
+    
+    await convertOne(tempFilePath, statusCallback, originalPath, processedOptions);
 
     const safeName = path
       .basename(fileData.name, path.extname(fileData.name))
@@ -188,9 +170,7 @@ ipcMain.handle("handle-file-object", async (event, file, options) => {
     console.log("Received file object:", file);
     console.log("Received options:", options);
 
-    // 옵션 검증 및 기본값 설정
-    const validatedOptions = validateAndSetDefaultOptions(options);
-    console.log("Validated options:", validatedOptions);
+    console.log("Received options:", options);
 
     // 파일 객체에서 ArrayBuffer로 데이터 읽기
     const arrayBuffer = await file.arrayBuffer();
@@ -205,8 +185,12 @@ ipcMain.handle("handle-file-object", async (event, file, options) => {
     fs.writeFileSync(tempFilePath, content);
 
     statusCallback(`🚀 변환 시작: ${file.name}`);
-    // Pass validatedOptions to convertOne
-    await convertOne(tempFilePath, statusCallback, null, validatedOptions);
+    // 간단한 옵션 처리
+    const processedOptions = {
+      showPageNumbers: options && typeof options.showPageNumbers === "boolean" ? options.showPageNumbers : true
+    };
+    
+    await convertOne(tempFilePath, statusCallback, null, processedOptions);
 
     const safeName = path
       .basename(file.name, path.extname(file.name))
@@ -240,9 +224,7 @@ ipcMain.on("file-path", async (event, filePath, options) => {
   console.log("Received filePath:", filePath, "Type:", typeof filePath);
   console.log("Received options:", options);
 
-  // 옵션 검증 및 기본값 설정
-  const validatedOptions = validateAndSetDefaultOptions(options);
-  console.log("Validated options:", validatedOptions);
+  console.log("Received options:", options);
 
   // filePath 검증
   if (!filePath || typeof filePath !== "string") {
@@ -266,8 +248,12 @@ ipcMain.on("file-path", async (event, filePath, options) => {
 
   try {
     statusCallback(`🚀 변환 시작: ${path.basename(filePath)}`);
-    // Pass validatedOptions to convertOne
-    await convertOne(filePath, statusCallback, null, validatedOptions);
+    // 간단한 옵션 처리
+    const processedOptions = {
+      showPageNumbers: options && typeof options.showPageNumbers === "boolean" ? options.showPageNumbers : true
+    };
+    
+    await convertOne(filePath, statusCallback, null, processedOptions);
     // Mark success explicitly to avoid stale failure message if downstream logged an error
     const safeName = path
       .basename(filePath, path.extname(filePath))
