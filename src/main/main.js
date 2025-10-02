@@ -75,8 +75,26 @@ ipcMain.handle("dialog:openFile", async () => {
 
 const { convertOne } = require("../utils/convert-md-to-pdf.js");
 
+// 옵션 검증 및 기본값 처리 함수
+function validateAndSetDefaultOptions(options) {
+  const defaultOptions = {
+    showPageNumbers: true,
+  };
+
+  if (!options || typeof options !== "object") {
+    return defaultOptions;
+  }
+
+  return {
+    showPageNumbers:
+      typeof options.showPageNumbers === "boolean"
+        ? options.showPageNumbers
+        : defaultOptions.showPageNumbers,
+  };
+}
+
 // 파일 내용 처리를 위한 핸들러
-ipcMain.handle("handle-file-content", async (event, fileData) => {
+ipcMain.handle("handle-file-content", async (event, fileData, options) => {
   const webContents = event.sender;
 
   const statusCallback = (message) => {
@@ -88,6 +106,11 @@ ipcMain.handle("handle-file-content", async (event, fileData) => {
 
   try {
     console.log("Received file data:", fileData);
+    console.log("Received options:", options);
+
+    // 옵션 검증 및 기본값 설정
+    const validatedOptions = validateAndSetDefaultOptions(options);
+    console.log("Validated options:", validatedOptions);
 
     if (!fileData || !fileData.name || !fileData.content) {
       statusCallback(`❌ 잘못된 파일 데이터입니다`);
@@ -106,7 +129,13 @@ ipcMain.handle("handle-file-content", async (event, fileData) => {
 
     // originalPath가 있으면 전달, 없으면 null (드래그앤드롭의 경우)
     const originalPath = fileData.originalPath || null;
-    await convertOne(tempFilePath, statusCallback, originalPath);
+    // Pass validatedOptions to convertOne
+    await convertOne(
+      tempFilePath,
+      statusCallback,
+      originalPath,
+      validatedOptions
+    );
 
     const safeName = path
       .basename(fileData.name, path.extname(fileData.name))
@@ -145,7 +174,7 @@ ipcMain.handle("handle-file-content", async (event, fileData) => {
 });
 
 // 파일 객체 처리를 위한 핸들러 (기존)
-ipcMain.handle("handle-file-object", async (event, file) => {
+ipcMain.handle("handle-file-object", async (event, file, options) => {
   const webContents = event.sender;
 
   const statusCallback = (message) => {
@@ -156,6 +185,13 @@ ipcMain.handle("handle-file-object", async (event, file) => {
   };
 
   try {
+    console.log("Received file object:", file);
+    console.log("Received options:", options);
+
+    // 옵션 검증 및 기본값 설정
+    const validatedOptions = validateAndSetDefaultOptions(options);
+    console.log("Validated options:", validatedOptions);
+
     // 파일 객체에서 ArrayBuffer로 데이터 읽기
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
@@ -169,7 +205,8 @@ ipcMain.handle("handle-file-object", async (event, file) => {
     fs.writeFileSync(tempFilePath, content);
 
     statusCallback(`🚀 변환 시작: ${file.name}`);
-    await convertOne(tempFilePath, statusCallback);
+    // Pass validatedOptions to convertOne
+    await convertOne(tempFilePath, statusCallback, null, validatedOptions);
 
     const safeName = path
       .basename(file.name, path.extname(file.name))
@@ -188,7 +225,7 @@ ipcMain.handle("handle-file-object", async (event, file) => {
   }
 });
 
-ipcMain.on("file-path", async (event, filePath) => {
+ipcMain.on("file-path", async (event, filePath, options) => {
   const webContents = event.sender;
 
   const statusCallback = (message) => {
@@ -201,6 +238,11 @@ ipcMain.on("file-path", async (event, filePath) => {
 
   // 디버깅을 위한 로그
   console.log("Received filePath:", filePath, "Type:", typeof filePath);
+  console.log("Received options:", options);
+
+  // 옵션 검증 및 기본값 설정
+  const validatedOptions = validateAndSetDefaultOptions(options);
+  console.log("Validated options:", validatedOptions);
 
   // filePath 검증
   if (!filePath || typeof filePath !== "string") {
@@ -224,7 +266,8 @@ ipcMain.on("file-path", async (event, filePath) => {
 
   try {
     statusCallback(`🚀 변환 시작: ${path.basename(filePath)}`);
-    await convertOne(filePath, statusCallback);
+    // Pass validatedOptions to convertOne
+    await convertOne(filePath, statusCallback, null, validatedOptions);
     // Mark success explicitly to avoid stale failure message if downstream logged an error
     const safeName = path
       .basename(filePath, path.extname(filePath))

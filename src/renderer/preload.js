@@ -2,10 +2,12 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("electronAPI", {
   // Renderer to Main
-  sendFilePath: (filePath) => ipcRenderer.send("file-path", filePath),
-  sendFileObject: (file) => ipcRenderer.invoke("handle-file-object", file),
-  sendFileContent: (fileData) =>
-    ipcRenderer.invoke("handle-file-content", fileData),
+  sendFilePath: (filePath, options) =>
+    ipcRenderer.send("file-path", filePath, options),
+  sendFileObject: (file, options) =>
+    ipcRenderer.invoke("handle-file-object", file, options),
+  sendFileContent: (fileData, options) =>
+    ipcRenderer.invoke("handle-file-content", fileData, options),
   openFile: () => ipcRenderer.invoke("dialog:openFile"),
 
   // Main to Renderer

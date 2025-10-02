@@ -283,7 +283,8 @@ function markdownToHtml(markdown) {
 async function convertOne(
   inputPath,
   statusCallback = () => {},
-  originalPath = null // GUI에서 반드시 원본 파일의 전체 경로를 이 인자로 전달해야 합니다.
+  originalPath = null, // GUI에서 반드시 원본 파일의 전체 경로를 이 인자로 전달해야 합니다.
+  options = { showPageNumbers: true } // 페이지 번호 표시 옵션 (기본값: true)
 ) {
   // --- 디버깅 로그 추가 ---
   console.log("=============================================");
@@ -554,18 +555,52 @@ ${blocks[i].code}
     await page.setContent(fullHtml, { waitUntil: "networkidle0" });
 
     const pdfPath = path.join(outputDir, `${safeName}.pdf`);
-    await page.pdf({
+
+    // PDF 생성 옵션 설정
+    const pdfOptions = {
       path: pdfPath,
       format: "A4",
       margin: {
         top: "20mm",
         right: "20mm",
-        bottom: "20mm",
+        bottom: options.showPageNumbers ? "25mm" : "20mm", // 페이지 번호 공간 확보
         left: "20mm",
       },
       printBackground: true,
       preferCSSPageSize: true,
-    });
+    };
+
+    // 페이지 번호 표시 옵션 추가
+    if (options.showPageNumbers) {
+      pdfOptions.displayHeaderFooter = true;
+      pdfOptions.footerTemplate = `
+        <div style="
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Malgun Gothic', sans-serif;
+          font-size: 10px; 
+          color: #666; 
+          text-align: center; 
+          width: 100%; 
+          margin: 0 auto;
+          padding: 5px 0;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          line-height: 1.4;
+          font-weight: 400;
+        ">
+          <span class="pageNumber" style="
+            font-family: inherit;
+            font-size: 10px;
+            color: #666;
+            font-weight: 400;
+            letter-spacing: 0.2px;
+          "></span>
+        </div>
+      `;
+      pdfOptions.headerTemplate = "<div></div>"; // 빈 헤더
+    }
+
+    await page.pdf(pdfOptions);
 
     statusCallback(`완료: ${safeName}.pdf`);
     return pdfPath;

@@ -1,6 +1,13 @@
 const dropZone = document.getElementById("drop-zone");
 const statusDiv = document.getElementById("status");
 
+// Function to collect conversion options from UI
+function getConversionOptions() {
+  return {
+    showPageNumbers: document.getElementById("page-numbers").checked,
+  };
+}
+
 function preventDefaults(e) {
   e.preventDefault();
   e.stopPropagation();
@@ -47,6 +54,9 @@ dropZone.addEventListener(
         console.log("File name:", file.name);
 
         try {
+          // Get conversion options from UI
+          const options = getConversionOptions();
+
           // Electron에서는 file.path가 있어야 함
           if (
             file.path &&
@@ -54,7 +64,8 @@ dropZone.addEventListener(
             file.path.trim() !== ""
           ) {
             console.log("Sending file path:", file.path);
-            window.electronAPI.sendFilePath(file.path);
+            console.log("Conversion options:", options);
+            window.electronAPI.sendFilePath(file.path, options);
           } else {
             console.log(
               "No file path available, using file content with warning"
@@ -73,11 +84,14 @@ dropZone.addEventListener(
               }, 3000);
             }
 
-            window.electronAPI.sendFileContent({
-              name: file.name,
-              content: content,
-              originalPath: null, // 드래그앤드롭에서는 원본 경로를 알 수 없음
-            });
+            window.electronAPI.sendFileContent(
+              {
+                name: file.name,
+                content: content,
+                originalPath: null, // 드래그앤드롭에서는 원본 경로를 알 수 없음
+              },
+              options
+            );
           }
         } catch (error) {
           console.error("Error processing file:", error);
@@ -105,7 +119,11 @@ dropZone.addEventListener("click", async () => {
     if (filePath) {
       const fileName = filePath.split(/[\\/]/).pop();
       statusDiv.textContent = `📄 파일 선택됨: ${fileName}`;
-      window.electronAPI.sendFilePath(filePath);
+
+      // Get conversion options from UI
+      const options = getConversionOptions();
+      console.log("Conversion options:", options);
+      window.electronAPI.sendFilePath(filePath, options);
     } else {
       statusDiv.textContent = "📁 파일을 기다리는 중...";
     }
